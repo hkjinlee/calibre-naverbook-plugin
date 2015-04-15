@@ -1,2 +1,2 @@
 #!/bin/sh
-zip calibre-naverbook-plugin.zip *.py *.txt
+zip bin/calibre-naverbook-plugin.zip *.py *.txt
