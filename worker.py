@@ -4,7 +4,7 @@ from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
 __license__   = 'GPL v3'
-__copyright__ = '2015, Jin, Heonkyu <heonkyu.jin@gmail.com>'
+__copyright__ = 'Jin, Heonkyu <heonkyu.jin@gmail.com>'
 __docformat__ = 'restructuredtext en'
 
 import socket, re, datetime
@@ -266,15 +266,16 @@ class Worker(Thread): # Get details
 
         authors_text = parts[0].strip()
         authors = authors_text.split(',')
-        self.log.info(authors)
         # User either requests all authors, or only the primary authors (latter is the default)
         # If only primary authors, only bring them in if:
         # 1. They have no author type specified
         # 2. They have an author type of 'Goodreads Author'
         # 3. There are no authors from 1&2 and they have an author type of 'Editor'
+
         get_all_authors = cfg.plugin_prefs[cfg.STORE_NAME][cfg.KEY_GET_ALL_AUTHORS]
-        if not get_all_authors:
-            authors = [ authors[0] ]
+        if get_all_authors and re.match('역자', parts[1]):
+            translators = re.sub('역자\s*', '', parts[1]).split(',')
+            authors += map(lambda x: x + u'(역자)', translators)
 
         return authors
 
@@ -295,17 +296,16 @@ class Worker(Thread): # Get details
         if rating_node:
             rating_text = tostring(rating_node[0], method='text', encoding=unicode)
             rating_text = re.sub('점', '', rating_text)
-            rating_value = float(rating_text)
-            if rating_value >= 100:
-                return rating_value / 100
+            # 네이버 평점은 10점 만점임
+            rating_value = float(rating_text) / 2
             return rating_value
 
     def parse_comments(self, root):
         # Look for description in a second span that gets expanded when interactively displayed [@id="display:none"]
-        description_node = root.xpath('//div[@id="metacol"]/div[@id="description"]/span')
+        description_node = root.xpath('//div[@id="bookIntroContent"]')
         if description_node:
             desc = description_node[0] if len(description_node) == 1 else description_node[1]
-            less_link = desc.xpath('a[@class="actionLinkLite"]')
+            less_link = desc.xpath('div[@class="section_open more_btn_t2"]')
             if less_link is not None and len(less_link):
                 desc.remove(less_link[0])
             comments = tostring(desc, method='html', encoding=unicode).strip()
@@ -327,20 +327,15 @@ class Worker(Thread): # Get details
                 self.log.warning('Broken image for url: %s'%img_url)
 
     def parse_isbn(self, root):
-        isbn_node = root.xpath('//div[@class="book_info_inner"]/div[3]')
-        if isbn_node:
-            id_type = tostring(isbn_node[0], method='text', encoding=unicode).strip()
-            if id_type == 'ISBN':
-                isbn10_data = tostring(isbn_node[1], method='text', encoding=unicode).strip()
-                isbn13_pos = isbn10_data.find('ISBN13:')
-                if isbn13_pos == -1:
-                    return isbn10_data[:10]
-                else:
-                    return isbn10_data[isbn13_pos+8:isbn13_pos+21]
-            elif id_type == 'ISBN13':
-                # We have just an ISBN13, without an ISBN10
-                return tostring(isbn_node[1], method='text', encoding=unicode).strip()
-
+        isbn_nodes = root.xpath('//div[@class="book_info_inner"]/div')
+        for node in isbn_nodes:
+            text = node.text_content().strip()
+            match = re.search('([0-9A-Z]{10,})', text)
+            if match:
+                isbn_text = match.group(1)
+                self.log.info('ISBN is %s'%isbn_text)
+                
+        return isbn_text.strip()
 
     def parse_tags(self, root):
         # Goodreads does not have "tags", but it does have Genres (wrapper around popular shelves)

@@ -20,11 +20,10 @@ from calibre.utils.icu import lower
 from calibre.utils.cleantext import clean_ascii_chars
 
 class NaverBook(Source):
-
     name = 'NaverBook'
     description = _('Downloads metadata and covers from book.naver.com')
-    author = 'Jin, Heonkyu'
-    version = (0, 0, 1)
+    author = 'Jin, Heonkyu <heonkyu.jin@gmail.com>'
+    version = (0, 0, 2)
     minimum_calibre_version = (0, 8, 0)
 
     capabilities = frozenset(['identify', 'cover'])
@@ -51,27 +50,29 @@ class NaverBook(Source):
                     '%s/bookdb/book_detail.nhn?bid=%s' % (NaverBook.BASE_URL, naverbook_id))
 
     def create_query(self, log, title=None, authors=None, identifiers={}):
-
         isbn = check_isbn(identifiers.get('isbn', None))
         q = ''
+        url = ''
         if isbn is not None:
-            q = '&search_type=books&search[query]=' + isbn
-#elif title or authors:
-        if title is not None:
+            q = '&isbn=' + isbn
+            url = '/search/search.nhn?serviceSm=advbook.basic&ic=service.summary' + q
+        elif title or authors:
             title_tokens = list(self.get_title_tokens(title,
                                 strip_joiners=False, strip_subtitle=True))
-            tokens = [quote(t.encode('utf-8') if isinstance(t, unicode) else t) for t in title_tokens]
-            q += '&title=' + '+'.join(tokens)
-        if authors is not None:
             author_tokens = self.get_author_tokens(authors, only_first_author=True)
-            tokens = [quote(t.encode('utf-8') if isinstance(t, unicode) else t) for t in author_tokens]
-            q += '&author=' + '+'.join(tokens)
 
-        if not q:
+            tokens = [quote(t.encode('utf-8') if isinstance(t, unicode) else t) 
+                for t in title_tokens]
+            tokens += [quote(t.encode('utf-8') if isinstance(t, unicode) else t) 
+                for t in author_tokens]
+            q += '&query=' + '+'.join(tokens)
+            url = '/search/search.nhn?sm=sta_hty.book' + q
+
+        if not url:
             return None
-        if isinstance(q, unicode):
-            q = q.encode('utf-8')
-        return NaverBook.BASE_URL + '/search/search.nhn?serviceSm=advbook.basic&ic=service.summary' + q
+
+        log.info('Search from %s' %(url))
+        return NaverBook.BASE_URL + url
 
     def get_cached_cover_url(self, identifiers):
         url = None
@@ -168,9 +169,10 @@ class NaverBook(Source):
         return None
 
     def _parse_search_results(self, log, orig_title, orig_authors, root, matches, timeout):
-        first_result = root.xpath('//ul[@id="searchBiblioList"]/li/dl')
-        if not first_result:
+        search_result = root.xpath('//ul[@id="searchBiblioList"]/li/dl')
+        if not search_result:
             return
+        log.info(search_result[0])
         title_tokens = list(self.get_title_tokens(orig_title))
         author_tokens = list(self.get_author_tokens(orig_authors))
 
@@ -190,20 +192,27 @@ class NaverBook(Source):
             if not author_tokens: amatch = True
             return match and amatch
 
-        title = first_result[0].xpath('./dt/a')[0].text_content().strip()
-        authors = first_result[0].xpath('./dd[@class="txt_block"]/a')[0].text_content().strip().split(',')
-        if not ismatch(title, authors):
+        matched_node = None
+        for node in search_result:
+            title = node.xpath('./dt/a')[0].text_content().strip()
+            authors = map(lambda x: x.text_content(), node.xpath('./dd[@class="txt_block"]/a'))
+            log.info('Iterating for %s (%s)' % (title, ','.join(authors)))
+            if ismatch(title, authors):
+                log.info('Matched')
+                matched_node = node
+                break
+
+        if matched_node is None:
             log.error('Rejecting as not close enough match: %s %s' % (title, authors))
             return
 
 #first_result_url_node = root.xpath('//table[@class="tableList"]/tr/td[1]/a[2]/@href')
-        first_result_url_node = first_result[0].xpath('./dt/a/@href')
+        first_result_url_node = matched_node.xpath('./dt/a/@href')
         if first_result_url_node:
             import calibre_plugins.naverbook.config as cfg
             c = cfg.plugin_prefs[cfg.STORE_NAME]
             result_url = first_result_url_node[0]
             matches.append(result_url)
-
 
     def download_cover(self, log, result_queue, abort,
             title=None, authors=None, identifiers={}, timeout=30):
