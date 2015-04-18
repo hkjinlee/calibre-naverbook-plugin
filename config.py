@@ -4,7 +4,7 @@ from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
 __license__   = 'GPL v3'
-__copyright__ = '2011, Grant Drake <grant.drake@gmail.com>'
+__copyright__ = 'Jin, Heonkyu <heonkyu.jin@gmail.com>'
 __docformat__ = 'restructuredtext en'
 
 import copy
@@ -114,7 +114,7 @@ class GenreTagMappingsTableWidget(QTableWidget):
         self.clear()
         self.setAlternatingRowColors(True)
         self.setRowCount(len(tag_mappings))
-        header_labels = ['Goodreads Genre', 'Maps to Calibre Tag(s)']
+        header_labels = [_('Naverbook Genre'), _('Maps to Calibre Tag(s)')]
         self.setColumnCount(len(header_labels))
         self.setHorizontalHeaderLabels(header_labels)
         self.verticalHeader().setDefaultSectionSize(24)
@@ -184,7 +184,7 @@ class ConfigWidget(DefaultConfigWidget):
         all_tags = get_current_db().all_tags()
 
         self.gb.setMaximumHeight(80)
-        genre_group_box = QGroupBox('Goodreads genre to calibre tag mappings', self)
+        genre_group_box = QGroupBox(_('Naverbook genre to calibre tag mappings'), self)
         self.l.addWidget(genre_group_box, self.l.rowCount(), 0, 1, 2)
         genre_group_box_layout = QVBoxLayout()
         genre_group_box.setLayout(genre_group_box_layout)
@@ -197,34 +197,34 @@ class ConfigWidget(DefaultConfigWidget):
         button_layout = QVBoxLayout()
         tags_layout.addLayout(button_layout)
         add_mapping_button = QtGui.QToolButton(self)
-        add_mapping_button.setToolTip('Add genre mapping')
+        add_mapping_button.setToolTip(_('Add genre mapping'))
         add_mapping_button.setIcon(QIcon(I('plus.png')))
         add_mapping_button.clicked.connect(self.add_mapping)
         button_layout.addWidget(add_mapping_button)
         spacerItem1 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
         button_layout.addItem(spacerItem1)
         remove_mapping_button = QtGui.QToolButton(self)
-        remove_mapping_button.setToolTip('Delete genre mapping')
+        remove_mapping_button.setToolTip(_('Delete genre mapping'))
         remove_mapping_button.setIcon(QIcon(I('minus.png')))
         remove_mapping_button.clicked.connect(self.delete_mapping)
         button_layout.addWidget(remove_mapping_button)
         spacerItem3 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
         button_layout.addItem(spacerItem3)
         rename_genre_button = QtGui.QToolButton(self)
-        rename_genre_button.setToolTip('Rename Goodreads genre')
+        rename_genre_button.setToolTip(_('Rename Goodreads genre'))
         rename_genre_button.setIcon(QIcon(I('edit-undo.png')))
         rename_genre_button.clicked.connect(self.rename_genre)
         button_layout.addWidget(rename_genre_button)
         spacerItem2 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
         button_layout.addItem(spacerItem2)
         reset_defaults_button = QtGui.QToolButton(self)
-        reset_defaults_button.setToolTip('Reset to plugin default mappings')
+        reset_defaults_button.setToolTip(_('Reset to plugin default mappings'))
         reset_defaults_button.setIcon(QIcon(I('clear_left.png')))
         reset_defaults_button.clicked.connect(self.reset_to_defaults)
         button_layout.addWidget(reset_defaults_button)
         self.l.setRowStretch(self.l.rowCount()-1, 2)
 
-        other_group_box = QGroupBox('Other options', self)
+        other_group_box = QGroupBox(_('Other options'), self)
         self.l.addWidget(other_group_box, self.l.rowCount(), 0, 1, 2)
         other_group_box_layout = QVBoxLayout()
         other_group_box.setLayout(other_group_box_layout)
