@@ -4,7 +4,7 @@ from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
 __license__ = 'GPL v3'
-__copyright__ = '2015, Jin, Heonkyu <heonkyu.jin@gmail.com>'
+__copyright__ = 'Jin, Heonkyu <heonkyu.jin@gmail.com>'
 __docformat__ = 'restructuredtext en'
 
 import time
@@ -19,11 +19,13 @@ from calibre.ebooks.metadata.sources.base import Source
 from calibre.utils.icu import lower
 from calibre.utils.cleantext import clean_ascii_chars
 
+load_translations()
+
 class NaverBook(Source):
     name = 'NaverBook'
     description = _('Downloads metadata and covers from book.naver.com')
     author = 'Jin, Heonkyu <heonkyu.jin@gmail.com>'
-    version = (0, 0, 2)
+    version = (0, 0, 3)
     minimum_calibre_version = (0, 8, 0)
 
     capabilities = frozenset(['identify', 'cover'])
@@ -115,24 +117,21 @@ class NaverBook(Source):
                 log.exception(err)
                 return as_unicode(e)
 
-            # For ISBN based searches we have already done everything we need to
-            # So anything from this point below is for title/author based searches.
-            if not isbn:
-                try:
-                    raw = response.read().strip()
-                    #open('E:\\t.html', 'wb').write(raw)
-                    raw = raw.decode('utf-8', errors='replace')
-                    if not raw:
-                        log.error('Failed to get raw result for query: %r' % query)
-                        return
-                    root = fromstring(clean_ascii_chars(raw))
-                except:
-                    msg = 'Failed to parse goodreads page for query: %r' % query
-                    log.exception(msg)
-                    return msg
-                # Now grab the first value from the search results, provided the
-                # title and authors appear to be for the same book
-                self._parse_search_results(log, title, authors, root, matches, timeout)
+            try:
+                raw = response.read().strip()
+                #open('E:\\t.html', 'wb').write(raw)
+                raw = raw.decode('utf-8', errors='replace')
+                if not raw:
+                    log.error('Failed to get raw result for query: %r' % query)
+                    return
+                root = fromstring(clean_ascii_chars(raw))
+            except:
+                msg = 'Failed to parse goodreads page for query: %r' % query
+                log.exception(msg)
+                return msg
+            # Now grab the first value from the search results, provided the
+            # title and authors appear to be for the same book
+            self._parse_search_results(log, isbn, title, authors, root, matches, timeout)
 
         if abort.is_set():
             return
@@ -168,45 +167,37 @@ class NaverBook(Source):
 
         return None
 
-    def _parse_search_results(self, log, orig_title, orig_authors, root, matches, timeout):
+    def _parse_search_results(self, log, isbn, orig_title, orig_authors, root, matches, timeout):
         search_result = root.xpath('//ul[@id="searchBiblioList"]/li/dl')
         if not search_result:
             return
         log.info(search_result[0])
         title_tokens = list(self.get_title_tokens(orig_title))
-        author_tokens = list(self.get_author_tokens(orig_authors))
-
-        def ismatch(title, authors):
-            authors = lower(' '.join(authors))
-            title = lower(title)
-            match = not title_tokens
-            for t in title_tokens:
-                if lower(t) in title:
-                    match = True
-                    break
-            amatch = not author_tokens
-            for a in author_tokens:
-                if lower(a) in authors:
-                    amatch = True
-                    break
-            if not author_tokens: amatch = True
-            return match and amatch
+        author_tokens = list(self.get_author_tokens(orig_authors, True))
 
         matched_node = None
-        for node in search_result:
-            title = node.xpath('./dt/a')[0].text_content().strip()
-            authors = map(lambda x: x.text_content(), node.xpath('./dd[@class="txt_block"]/a'))
-            log.info('Iterating for %s (%s)' % (title, ','.join(authors)))
-            if ismatch(title, authors):
-                log.info('Matched')
-                matched_node = node
-                break
+        if isbn:
+            matched_node = search_result[0]
+        else:
+            import difflib
+            similarities = []
+            for i in range(len(search_result)):
+                title = search_result[i].xpath('./dt/a')[0].text_content()
+                author = search_result[i].xpath('./dd[@class="txt_block"]/a')[0].text_content()
+                log.info('Compare %s (%s) with %s (%s)' % (title, author, 
+                            ' '.join(title_tokens), 
+                            ' '.join(author_tokens)))
+                title_similarity = difflib.SequenceMatcher(None, 
+                        title.replace(' ', ''), ''.join(title_tokens)).ratio()
+                author_similarity = difflib.SequenceMatcher(None, 
+                        author.replace(' ', ''), ''.join(author_tokens)).ratio()
+                similarities.append(title_similarity * author_similarity)
+            matched_node = search_result[similarities.index(max(similarities))]
 
         if matched_node is None:
             log.error('Rejecting as not close enough match: %s %s' % (title, authors))
             return
 
-#first_result_url_node = root.xpath('//table[@class="tableList"]/tr/td[1]/a[2]/@href')
         first_result_url_node = matched_node.xpath('./dt/a/@href')
         if first_result_url_node:
             import calibre_plugins.naverbook.config as cfg
