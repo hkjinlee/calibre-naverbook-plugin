@@ -79,10 +79,6 @@ class Worker(Thread): # Get details
         raw = raw.decode('utf-8', errors='replace')
         #open('c:\\naverbook.html', 'wb').write(raw)
 
-        if '<title>404 - ' in raw:
-            self.log.error('URL malformed: %r'%self.url)
-            return
-
         try:
             root = fromstring(clean_ascii_chars(raw))
         except:
@@ -94,10 +90,9 @@ class Worker(Thread): # Get details
             # Look at the <title> attribute for page to make sure that we were actually returned
             # a details page for a book. If the user had specified an invalid ISBN, then the results
             # page will just do a textual search.
-            title_node = root.xpath('//title')
-            if title_node:
-                page_title = title_node[0].text_content().strip()
-                if page_title is None or page_title.find('search results for') != -1:
+            title = root.xpath('//meta[@property="og:title"]/@content')
+            if title:
+                if title is None:
                     self.log.error('Failed to see search results in page title: %r'%self.url)
                     return
         except:
